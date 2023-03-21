@@ -30,10 +30,8 @@ async def process_output_garbage_result(image):
     model = tf.keras.models.model_from_config(config)
     model.load_weights('garbage.h5')
     image = xception.preprocess_input(image)
-    print(tf.__version__)
     result = model(np.array([image]))
     tf_constant = tf.constant(result)
-    print(tf_constant)
     return tf_constant[0].numpy().tolist()
 
 
