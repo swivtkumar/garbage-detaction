@@ -1,11 +1,13 @@
-import json
-import os
 import tensorflow as tf
 import cv2 as cv
+import os
 import numpy as np
+import json
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from pydantic import BaseModel
 from typing import Any
+from tensorflow.keras.applications import xception
+import uvicorn
 
 
 app = FastAPI()
@@ -21,34 +23,18 @@ class DefaultSchema(BaseModel):
     status_code: int
 
 
-def process_output_garbage_result():
-
+async def process_output_garbage_result(image):
     with open('config/config.json') as f:
         config = json.load(f)
 
-    image = "ggb.png"
-    image = cv.imread(image)
-    image = cv.resize(image, (320, 320))
-
     model = tf.keras.models.model_from_config(config)
     model.load_weights('garbage.h5')
-    image = tf.keras.applications.xception.preprocess_input(image)
-    return model(np.array([image]))
-
-
-def array_np():
-    with open('config/config.json') as f:
-        config = json.load(f)
-
-    image = "ggb.png"
-    image = cv.imread(image)
-    image = cv.resize(image, (320, 320))
-
-    model = tf.keras.models.model_from_config(config)
-    model.load_weights('garbage.h5')
-    image = tf.keras.applications.xception.preprocess_input(image)
+    image = xception.preprocess_input(image)
     print(tf.__version__)
-    return model(np.array([image]))
+    result = model(np.array([image]))
+    tf_constant = tf.constant(result)
+    print(tf_constant)
+    return tf_constant[0].numpy().tolist()
 
 
 @app.get('/', response_model=DefaultSchema)
@@ -67,18 +53,23 @@ async def garbage_response(
     content_type = image.content_type.split('/')
     if content_type[0] != 'image':
         raise HTTPException(status_code=400, detail="The uploaded files is not a image")
-    
-    file_path = os.path.join("uploads", 'ggb.png')
-    # with open(file_path, "wb") as buffer:
-    #     buffer.write(await image.read())
-    #
 
-    # read_img = cv.imread(file_path)
-    # resize_image = cv.resize(read_img, (320, 320))
+    file_path = os.path.join("uploads", image.filename)
+    with open(file_path, "wb") as buffer:
+        buffer.write(await image.read())
 
-    result = process_output_garbage_result()
+    read_img = cv.imread(file_path)
+    resize_image = cv.resize(read_img, (320, 320))
+
+    result = await process_output_garbage_result(resize_image)
+    if os.path.exists(file_path):
+        os.remove(file_path)
 
     return GarbageResponseSchema(
         status_code=200,
         results=result
     )
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host='127.0.0.1', port=9000)
