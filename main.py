@@ -33,8 +33,8 @@ async def process_output_garbage_result(image: Any, file_path: str):
     result = model(np.array([image]))
     tf_constant = tf.constant(result)
     # delete file after response
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    #if os.path.exists(file_path):
+    #    os.remove(file_path)
 
     return tf_constant[0].numpy().tolist()
 
