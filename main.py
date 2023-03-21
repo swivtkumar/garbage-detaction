@@ -9,8 +9,8 @@ from typing import Any
 from tensorflow.keras.applications import xception
 import uvicorn
 
-
 app = FastAPI()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 class GarbageResponseSchema(BaseModel):
@@ -24,17 +24,19 @@ class DefaultSchema(BaseModel):
 
 
 async def process_output_garbage_result(image: Any, file_path: str):
-    with open('config/config.json') as f:
+    config_path = os.path.join(BASE_DIR, 'config/config.json')
+    model_path = os.path.join(BASE_DIR, 'garbage.h5')
+    with open(config_path) as f:
         config = json.load(f)
 
     model = tf.keras.models.model_from_config(config)
-    model.load_weights('garbage.h5')
+    model.load_weights(model_path)
     image = xception.preprocess_input(image)
     result = model(np.array([image]))
     tf_constant = tf.constant(result)
     # delete file after response
-    #if os.path.exists(file_path):
-    #    os.remove(file_path)
+    if os.path.exists(file_path):
+        os.remove(file_path)
 
     return tf_constant[0].numpy().tolist()
 
@@ -56,7 +58,8 @@ async def garbage_response(
     if content_type[0] != 'image':
         raise HTTPException(status_code=400, detail="The uploaded files is not a image")
 
-    file_path = os.path.join("uploads", image.filename)
+    uploads_path = os.path.join(BASE_DIR, 'uploads')
+    file_path = os.path.join(uploads_path, image.filename)
     with open(file_path, "wb") as buffer:
         buffer.write(await image.read())
 
@@ -72,4 +75,6 @@ async def garbage_response(
 
 
 if __name__ == "__main__":
+    print(BASE_DIR)
     uvicorn.run(app, host='127.0.0.1', port=9000)
+
