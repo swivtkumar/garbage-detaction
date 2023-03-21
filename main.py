@@ -1,6 +1,5 @@
 import json
 import os
-from tensorflow import keras
 import tensorflow as tf
 import cv2 as cv
 import numpy as np
@@ -22,12 +21,42 @@ class DefaultSchema(BaseModel):
     status_code: int
 
 
+def process_output_garbage_result():
+
+    with open('config/config.json') as f:
+        config = json.load(f)
+
+    image = "ggb.png"
+    image = cv.imread(image)
+    image = cv.resize(image, (320, 320))
+
+    model = tf.keras.models.model_from_config(config)
+    model.load_weights('garbage.h5')
+    image = tf.keras.applications.xception.preprocess_input(image)
+    return model(np.array([image]))
+
+
+def array_np():
+    with open('config/config.json') as f:
+        config = json.load(f)
+
+    image = "ggb.png"
+    image = cv.imread(image)
+    image = cv.resize(image, (320, 320))
+
+    model = tf.keras.models.model_from_config(config)
+    model.load_weights('garbage.h5')
+    image = tf.keras.applications.xception.preprocess_input(image)
+    print(tf.__version__)
+    return model(np.array([image]))
+
+
 @app.get('/', response_model=DefaultSchema)
 def index() -> DefaultSchema:
     return DefaultSchema(message='Garbage identifiers', status_code=200)
 
 
-@app.post('/garbage-upload', response_model=GarbageResponseSchema)
+@app.post('/uploads', response_model=GarbageResponseSchema)
 async def garbage_response(
     image: UploadFile = File(...)
 ) -> GarbageResponseSchema:
@@ -46,26 +75,10 @@ async def garbage_response(
 
     # read_img = cv.imread(file_path)
     # resize_image = cv.resize(read_img, (320, 320))
-    result = process_output_garbage_result(image=file_path)
+
+    result = process_output_garbage_result()
 
     return GarbageResponseSchema(
         status_code=200,
         results=result
     )
-
-
-def process_output_garbage_result(image):
-
-    with open('config/config.json') as f:
-        config = json.load(f)
-
-    image = cv.imread(image)
-    image = cv.resize(image, (320, 320))
-
-    image = keras.applications.xception.preprocess_input(image)
-    model = tf.keras.models.model_from_config(config)
-    model.load_weights('garbage.h5')
-
-    return model(np.array([image]))
-
-
