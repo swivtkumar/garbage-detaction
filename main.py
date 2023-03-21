@@ -23,7 +23,7 @@ class DefaultSchema(BaseModel):
     status_code: int
 
 
-async def process_output_garbage_result(image):
+async def process_output_garbage_result(image: Any, file_path: str):
     with open('config/config.json') as f:
         config = json.load(f)
 
@@ -32,6 +32,10 @@ async def process_output_garbage_result(image):
     image = xception.preprocess_input(image)
     result = model(np.array([image]))
     tf_constant = tf.constant(result)
+    # delete file after response
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
     return tf_constant[0].numpy().tolist()
 
 
@@ -59,9 +63,7 @@ async def garbage_response(
     read_img = cv.imread(file_path)
     resize_image = cv.resize(read_img, (320, 320))
 
-    result = await process_output_garbage_result(resize_image)
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    result = await process_output_garbage_result(image=resize_image, file_path=file_path)
 
     return GarbageResponseSchema(
         status_code=200,
