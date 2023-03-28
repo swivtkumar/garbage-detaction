@@ -8,6 +8,10 @@ from pydantic import BaseModel
 from typing import Any
 from tensorflow.keras.applications import xception
 import uvicorn
+from  pathlib import Path
+import random
+import string
+
 
 app = FastAPI()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,9 +27,29 @@ class DefaultSchema(BaseModel):
     status_code: int
 
 
-async def process_output_garbage_result(image: Any, file_path: str):
+def predict_result(image:Any, file_path:str):
     config_path = os.path.join(BASE_DIR, 'config/config.json')
     model_path = os.path.join(BASE_DIR, 'garbage.h5')
+
+    with open(config_path, 'r') as f:
+        model = tf.keras.models.model_from_json(f.read())
+
+    model.load_weights(model_path)
+    input_image = np.expand_dims(image, axis=0)
+    input_image = input_image.astype(np.float32)
+
+    output = model.predict(input_image)
+
+    # delete file after response
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    return output[0].tolist()
+
+
+async def process_output_garbage_result(image: Any, file_path: str):
+    config_path = os.path.join(BASE_DIR, 'garbage_model.json')
+    model_path = os.path.join(BASE_DIR, 'garbage_model_weights.h5')
     with open(config_path) as f:
         config = json.load(f)
 
@@ -35,8 +59,8 @@ async def process_output_garbage_result(image: Any, file_path: str):
     result = model(np.array([image]))
     tf_constant = tf.constant(result)
     # delete file after response
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    #if os.path.exists(file_path):
+    #    os.remove(file_path)
 
     return tf_constant[0].numpy().tolist()
 
@@ -59,22 +83,26 @@ async def garbage_response(
         raise HTTPException(status_code=400, detail="The uploaded files is not a image")
 
     uploads_path = os.path.join(BASE_DIR, 'uploads')
-    file_path = os.path.join(uploads_path, image.filename)
+    image_name = ''.join(random.choice(string.ascii_lowercase) for i in range(7)) + image.filename
+    file_path = os.path.join(uploads_path, image_name)
     with open(file_path, "wb") as buffer:
         buffer.write(await image.read())
 
     read_img = cv.imread(file_path)
-    resize_image = cv.resize(read_img, (320, 320))
+    input_shape = (320, 320, 3)
+    resize_image = cv.resize(read_img, input_shape[:2])
 
-    result = await process_output_garbage_result(image=resize_image, file_path=file_path)
+    #result = await process_output_garbage_result(image=resize_image, file_path=file_path)
+    result = predict_result(image=resize_image, file_path=file_path)
 
     return GarbageResponseSchema(
         status_code=200,
-        results=result
+        results=result,
+        
     )
 
 
 if __name__ == "__main__":
     print(BASE_DIR)
-    uvicorn.run(app, host='127.0.0.1', port=9000)
+    uvicorn.run(f"{Path(__file__).stem}:app", host='127.0.0.1', port=9000, reload=True)
 
