@@ -27,7 +27,7 @@ class DefaultSchema(BaseModel):
     status_code: int
 
 
-def predict_result(image:Any, file_path:str):
+def predict_result(file_path:str):
     config_path = os.path.join(BASE_DIR, 'config/config.json')
     model_path = os.path.join(BASE_DIR, 'garbage.h5')
 
@@ -35,9 +35,9 @@ def predict_result(image:Any, file_path:str):
         model = tf.keras.models.model_from_json(f.read())
 
     model.load_weights(model_path)
-    input_image = np.expand_dims(image, axis=0)
-    input_image = input_image.astype(np.float32)
-
+    read_img = cv.imread(file_path)
+    resize_image = cv.resize(read_img, (320,320))
+    input_image = np.expand_dims(resize_image, axis=0)
     output = model.predict(input_image)
 
     # delete file after response
@@ -88,12 +88,8 @@ async def garbage_response(
     with open(file_path, "wb") as buffer:
         buffer.write(await image.read())
 
-    read_img = cv.imread(file_path)
-    input_shape = (320, 320, 3)
-    resize_image = cv.resize(read_img, input_shape[:2])
-
     #result = await process_output_garbage_result(image=resize_image, file_path=file_path)
-    result = predict_result(image=resize_image, file_path=file_path)
+    result = predict_result(file_path=file_path)
 
     return GarbageResponseSchema(
         status_code=200,
@@ -103,6 +99,5 @@ async def garbage_response(
 
 
 if __name__ == "__main__":
-    print(BASE_DIR)
     uvicorn.run(f"{Path(__file__).stem}:app", host='127.0.0.1', port=9000, reload=True)
 
