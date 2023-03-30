@@ -6,6 +6,7 @@ import json
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from pydantic import BaseModel
 from typing import Any
+from tensorflow.keras.preprocessing import image
 from tensorflow.keras.applications import xception
 import uvicorn
 from  pathlib import Path
@@ -29,40 +30,23 @@ class DefaultSchema(BaseModel):
 
 def predict_result(file_path:str):
     config_path = os.path.join(BASE_DIR, 'config/config.json')
-    model_path = os.path.join(BASE_DIR, 'garbage.h5')
+    model_path = os.path.join(BASE_DIR, 'garbage_model_weights.h5')
 
     with open(config_path, 'r') as f:
         model = tf.keras.models.model_from_json(f.read())
 
     model.load_weights(model_path)
-    read_img = cv.imread(file_path)
-    resize_image = cv.resize(read_img, (320,320))
-    input_image = np.expand_dims(resize_image, axis=0)
+
+    input_image = image.load_img(file_path, target_size= (320,320))
+    input_image = image.img_to_array(input_image)
+    input_image = np.expand_dims(input_image, axis=0)
     output = model.predict(input_image)
 
     # delete file after response
     if os.path.exists(file_path):
         os.remove(file_path)
-
     return output[0].tolist()
 
-
-async def process_output_garbage_result(image: Any, file_path: str):
-    config_path = os.path.join(BASE_DIR, 'garbage_model.json')
-    model_path = os.path.join(BASE_DIR, 'garbage_model_weights.h5')
-    with open(config_path) as f:
-        config = json.load(f)
-
-    model = tf.keras.models.model_from_config(config)
-    model.load_weights(model_path)
-    image = xception.preprocess_input(image)
-    result = model(np.array([image]))
-    tf_constant = tf.constant(result)
-    # delete file after response
-    #if os.path.exists(file_path):
-    #    os.remove(file_path)
-
-    return tf_constant[0].numpy().tolist()
 
 
 @app.get('/', response_model=DefaultSchema)
